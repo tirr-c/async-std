@@ -119,24 +119,6 @@ pub trait Stream {
     /// such that after the first time `poll` returns
     /// `Poll::Ready(None)`, all future calls to
     /// `poll` will also return `Poll::Ready(None)`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # #![feature(async_await)]
-    /// # fn main() { async_std::task::block_on(async {
-    /// #
-    /// use async_std::prelude::*;
-    /// use async_std::stream;
-    ///
-    /// let mut s = stream::repeat(9).take(3);
-    ///
-    /// while let Some(v) = s.next().await {
-    ///     assert_eq!(v, 9);
-    /// }
-    /// #
-    /// # }) }
-    /// ```
     fn fuse(self) -> Fuse<Self>
     where
         Self: Sized,
