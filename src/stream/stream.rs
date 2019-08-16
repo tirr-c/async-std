@@ -213,10 +213,7 @@ impl<S: futures::Stream> Fuse<S> {
     /// Consumes this `Fuse` and returns the inner
     /// `Stream`, unfusing it if it had become
     /// fused.
-    pub fn into_inner(self) -> S
-    where
-        S: Sized,
-    {
+    pub fn into_inner(self) -> S {
         self.stream
     }
 }
