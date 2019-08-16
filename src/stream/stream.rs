@@ -114,6 +114,38 @@ pub trait Stream {
             remaining: n,
         }
     }
+
+    /// Transforms this `Stream` into a "fused" `Stream`
+    /// such that after the first time `poll` returns
+    /// `Poll::Ready(None)`, all future calls to
+    /// `poll` will also return `Poll::Ready(None)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #![feature(async_await)]
+    /// # fn main() { async_std::task::block_on(async {
+    /// #
+    /// use async_std::prelude::*;
+    /// use async_std::stream;
+    ///
+    /// let mut s = stream::repeat(9).take(3);
+    ///
+    /// while let Some(v) = s.next().await {
+    ///     assert_eq!(v, 9);
+    /// }
+    /// #
+    /// # }) }
+    /// ```
+    fn fuse(self) -> Fuse<Self>
+    where
+        Self: Sized,
+    {
+        Fuse {
+            stream: self,
+            done: false,
+        }
+    }
 }
 
 impl<T: futures::Stream + Unpin + ?Sized> Stream for T {
@@ -166,6 +198,57 @@ impl<S: futures::Stream> futures::Stream for Take<S> {
             match next {
                 Some(_) => *self.as_mut().remaining() -= 1,
                 None => *self.as_mut().remaining() = 0,
+            }
+            Poll::Ready(next)
+        }
+    }
+}
+
+/// A `Stream` that is permanently closed
+/// once a single call to `poll` results in
+/// `Poll::Ready(None)`, returning `Poll::Ready(None)`
+/// for all future calls to `poll`.
+#[derive(Clone, Debug)]
+pub struct Fuse<S> {
+    stream: S,
+    done: bool,
+}
+
+impl<S: Unpin> Unpin for Fuse<S> {}
+
+impl<S: futures::Stream> Fuse<S> {
+    pin_utils::unsafe_pinned!(stream: S);
+    pin_utils::unsafe_unpinned!(done: bool);
+
+    /// Returns `true` if the underlying stream is fused.
+    ///
+    /// If this `Stream` is fused, all future calls to
+    /// `poll` will return `Poll::Ready(None)`.
+    pub fn is_done(&self) -> bool {
+        self.done
+    }
+
+    /// Consumes this `Fuse` and returns the inner
+    /// `Stream`, unfusing it if it had become
+    /// fused.
+    pub fn into_inner(self) -> S
+    where
+        S: Sized,
+    {
+        self.stream
+    }
+}
+
+impl<S: futures::Stream> futures::Stream for Fuse<S> {
+    type Item = S::Item;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<S::Item>> {
+        if self.done {
+            Poll::Ready(None)
+        } else {
+            let next = futures::ready!(self.as_mut().stream().poll_next(cx));
+            if next.is_none() {
+                *self.as_mut().done() = true;
             }
             Poll::Ready(next)
         }
