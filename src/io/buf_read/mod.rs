@@ -41,6 +41,15 @@ cfg_if! {
 /// [`futures::io::AsyncBufRead`]:
 /// https://docs.rs/futures-preview/0.3.0-alpha.17/futures/io/trait.AsyncBufRead.html
 pub trait BufRead {
+    /// Tells this buffer that `amt` bytes have been consumed from the buffer, so they should no
+    /// longer be returned in calls to `read`.
+    fn consume(self: Pin<&mut Self>, amt: usize)
+    where
+        Self: AsyncBufRead,
+    {
+        AsyncBufRead::consume(self, amt)
+    }
+
     /// Reads all bytes into `buf` until the delimiter `byte` or EOF is reached.
     ///
     /// This function will read bytes from the underlying stream until the delimiter or EOF is
