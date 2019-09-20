@@ -34,11 +34,13 @@ mod next;
 mod nth;
 mod scan;
 mod take;
+mod then;
 mod zip;
 
 pub use fuse::Fuse;
 pub use scan::Scan;
 pub use take::Take;
+pub use then::Then;
 pub use zip::Zip;
 
 use all::AllFuture;
@@ -763,6 +765,86 @@ pub trait Stream {
         B: FromStream<<Self as futures_core::stream::Stream>::Item>,
     {
         FromStream::from_stream(self)
+    }
+
+    /// ```
+    /// # fn main() { async_std::task::block_on(async {
+    /// #
+    /// use std::collections::VecDeque;
+    /// use async_std::stream::Stream;
+    ///
+    /// let s: VecDeque<usize> = vec![1, 2, 3].into_iter().collect();
+    /// let mut s = s.then(|x| Box::pin(async move {
+    ///     x + 3
+    /// }));
+    ///
+    /// assert_eq!(s.next().await, Some(4));
+    /// assert_eq!(s.next().await, Some(5));
+    /// assert_eq!(s.next().await, Some(6));
+    /// assert_eq!(s.next().await, None);
+    /// #
+    /// # }) }
+    /// ```
+    fn then<'a, F, Fut, U>(self, f: F) -> Then<Self, F, Fut>
+    where
+        Self: 'a + Sized,
+        F: 'a + FnMut(Self::Item) -> Fut,
+        Fut: 'a + core::future::Future<Output = U>,
+    {
+        Then::new(self, f)
+    }
+
+    /// ```
+    /// # fn main() { async_std::task::block_on(async {
+    /// #
+    /// use std::collections::VecDeque;
+    /// use async_std::stream::Stream;
+    ///
+    /// let s: VecDeque<(usize, usize)> = vec![(1, 4), (2, 5), (3, 6)].into_iter().collect();
+    /// let (a, b): (Vec<_>, Vec<_>) = s.unzip().await;
+    ///
+    /// assert_eq!(a, vec![1, 2, 3]);
+    /// assert_eq!(b, vec![4, 5, 6]);
+    /// #
+    /// # }) }
+    /// ```
+    #[cfg_attr(feature = "docs", doc(cfg(unstable)))]
+    #[cfg(any(feature = "unstable", feature = "docs"))]
+    fn unzip<'a, A, B, FromA, FromB>(self) -> dyn_ret!('a, (FromA, FromB))
+    where
+        Self: 'a + Stream<Item = (A, B)> + Send + Sized,
+        FromA: FromStream<A> + Send,
+        FromB: FromStream<B> + Send,
+        A: 'a + Send,
+        B: 'a + Send,
+    {
+        use futures_util::sink::SinkExt;
+
+        let (tx_a, rx_a) = futures_channel::mpsc::channel(0);
+        let (tx_b, rx_b) = futures_channel::mpsc::channel(0);
+
+        let output = async move {
+            let a = FromA::from_stream(rx_a);
+            let b = FromB::from_stream(rx_b);
+            futures_util::join!(a, b)
+        };
+
+        let send = self
+            .then(move |(a, b)| {
+                let mut tx_a = tx_a.clone();
+                let mut tx_b = tx_b.clone();
+                async move {
+                    let fut_a = tx_a.send(a);
+                    let fut_b = tx_b.send(b);
+                    let _ = futures_util::join!(fut_a, fut_b);
+                }
+            })
+            .collect();
+
+        Box::pin(async move {
+            let (output, _): (_, ()) = futures_util::join!(output, send);
+            output
+        })
     }
 }
 

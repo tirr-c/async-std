@@ -1,4 +1,4 @@
-use super::IntoStream;
+use super::{IntoStream, Stream};
 
 use std::pin::Pin;
 
@@ -27,4 +27,17 @@ pub trait FromStream<T: Send> {
     fn from_stream<'a, S: IntoStream<Item = T> + Send + 'a>(
         stream: S,
     ) -> Pin<Box<dyn core::future::Future<Output = Self> + Send + 'a>>;
+}
+
+impl FromStream<()> for () {
+    fn from_stream<'a, S: IntoStream<Item = ()> + Send + 'a>(
+        stream: S,
+    ) -> Pin<Box<dyn core::future::Future<Output = Self> + Send + 'a>>
+    {
+        let stream = stream.into_stream();
+        Box::pin(async move {
+            pin_utils::pin_mut!(stream);
+            while let Some(_) = stream.next().await {}
+        })
+    }
 }
