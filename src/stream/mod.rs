@@ -39,6 +39,8 @@ cfg_if! {
         mod from_stream;
         mod into_stream;
 
+        pub use stream::FutureMap;
+
         pub use double_ended_stream::DoubleEndedStream;
         pub use from_stream::FromStream;
         pub use into_stream::IntoStream;

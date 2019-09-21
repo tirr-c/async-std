@@ -61,6 +61,9 @@ use cfg_if::cfg_if;
 
 cfg_if! {
     if #[cfg(any(feature = "unstable", feature = "docs"))] {
+        mod future_map;
+        pub use future_map::FutureMap;
+
         use crate::stream::FromStream;
     }
 }
@@ -763,6 +766,38 @@ pub trait Stream {
         B: FromStream<<Self as futures_core::stream::Stream>::Item>,
     {
         FromStream::from_stream(self)
+    }
+
+    /// Transforms this stream's items using the given asynchronous closure.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # fn main() { async_std::task::block_on(async {
+    /// #
+    /// use std::collections::VecDeque;
+    /// use async_std::future;
+    /// use async_std::stream::Stream;
+    ///
+    /// let s: VecDeque<usize> = vec![1, 2, 3].into_iter().collect();
+    /// let mut s = s.future_map(|x| Box::pin(future::ready(x + 3)));
+    ///
+    /// assert_eq!(s.next().await, Some(4));
+    /// assert_eq!(s.next().await, Some(5));
+    /// assert_eq!(s.next().await, Some(6));
+    /// assert_eq!(s.next().await, None);
+    /// #
+    /// # }) }
+    /// ```
+    #[cfg_attr(feature = "docs", doc(cfg(unstable)))]
+    #[cfg(any(feature = "unstable", feature = "docs"))]
+    fn future_map<'a, F, Fut, U>(self, f: F) -> FutureMap<Self, F, Fut>
+    where
+        Self: 'a + Sized,
+        F: 'a + FnMut(Self::Item) -> Fut,
+        Fut: 'a + core::future::Future<Output = U>,
+    {
+        FutureMap::new(self, f)
     }
 }
 
