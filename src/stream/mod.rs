@@ -42,7 +42,7 @@ cfg_if! {
         mod into_stream;
 
         pub use double_ended_stream::DoubleEndedStream;
-        pub use extend::Extend;
+        pub use extend::{Extend, ExtendSink, extend_sink};
         pub use from_stream::FromStream;
         pub use into_stream::IntoStream;
 

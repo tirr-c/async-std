@@ -21,8 +21,8 @@ features = ["docs"]
 rustdoc-args = ["--cfg", "feature=\"docs\""]
 
 [features]
-docs = ["broadcaster"]
-unstable = ["broadcaster"]
+docs = ["broadcaster", "futures-sink-preview"]
+unstable = ["broadcaster", "futures-sink-preview"]
 
 [dependencies]
 async-macros = "1.0.0"
@@ -32,6 +32,7 @@ crossbeam-channel = "0.3.9"
 crossbeam-deque = "0.7.1"
 futures-core-preview = "=0.3.0-alpha.18"
 futures-io-preview = "=0.3.0-alpha.18"
+futures-sink-preview = { version = "=0.3.0-alpha.18", optional = true }
 futures-timer = "0.4.0"
 lazy_static = "1.4.0"
 log = { version = "0.4.8", features = ["kv_unstable"] }
